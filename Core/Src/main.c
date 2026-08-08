@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+//extern DMA_HandleTypeDef hdma_usart2_rx；
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,14 +42,17 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
+DMA_HandleTypeDef hdma_usart2_rx;
 
 /* USER CODE BEGIN PV */
-uint8_t receiveData[2];
+uint8_t receiveData[50];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -58,7 +62,7 @@ static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	HAL_UART_Transmit_IT(&huart2, receiveData, 2);               //中断模式的串口发送
+	HAL_UART_Transmit_DMA(&huart2, receiveData, 2);               //中断模式的串口发送
 	GPIO_PinState state = GPIO_PIN_SET;
 	if (receiveData[1]=='0'){
 		state = GPIO_PIN_RESET;
@@ -70,7 +74,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}else if(receiveData[0] == 'B'){
 		HAL_GPIO_WritePin(LED_BLUE_GPIO_Port, LED_BLUE_Pin, state);
 	}	//接收的中断模式
-	HAL_UART_Receive_IT(&huart2, receiveData, 2);
+	HAL_UART_Receive_DMA(&huart2, receiveData, 2);
+}
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
+  if(huart == &huart2){
+    HAL_UART_Transmit_DMA(&huart2, receiveData, Size);              
+
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart2, receiveData, sizeof(receiveData));
+  
+  }
 }
 /* USER CODE END 0 */
 
@@ -103,11 +116,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
 //char message[] = "bomb is about to explode";  //发送数据到电脑
-  HAL_UART_Receive_IT(&huart2, receiveData, 2);
+  //HAL_UART_Receive_DMA(&huart2, receiveData, 2);  //DMA模式把IT改成DMA即可
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart2, receiveData, sizeof(receiveData));  //DMA模式把IT改成DMA即可
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -204,6 +220,25 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
+  /* DMA1_Channel7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
 
 }
 
