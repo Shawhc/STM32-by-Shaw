@@ -77,14 +77,34 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_DMA(&huart2, receiveData, 2);
 }
 
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    if (huart == &huart2)
+    {
+        /* 1. 获取触发回调的事件类型 */
+        HAL_UART_RxEventTypeTypeDef eventType = HAL_UARTEx_GetRxEventType(huart);
+
+        /* 2. 只在“传输完成”或“空闲”时处理数据并重启接收 */
+        if (eventType == HAL_UART_RXEVENT_TC || eventType == HAL_UART_RXEVENT_IDLE)
+        {
+            // 数据已完整接收（达到缓冲区大小或总线空闲）
+            // 将收到的数据原样发回（通过 DMA）
+            HAL_UART_Transmit_DMA(&huart2, receiveData, Size);
+
+            // 重新启动 DMA 接收，准备下一帧数据
+            HAL_UARTEx_ReceiveToIdle_DMA(&huart2, receiveData, sizeof(receiveData));
+        }
+        /* 如果是半传输中断 (HAL_UART_RXEVENT_HT)，我们什么都不做，直接忽略 */
+    }
+}    //以上为改良版，解决了DMA模式下的中断优化问题，避免了半传输中断的干扰，以下为原始版本，未优化
+/*void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
   if(huart == &huart2){
     HAL_UART_Transmit_DMA(&huart2, receiveData, Size);              
 
     HAL_UARTEx_ReceiveToIdle_DMA(&huart2, receiveData, sizeof(receiveData));
   
   }
-}
+}*/
 /* USER CODE END 0 */
 
 /**
